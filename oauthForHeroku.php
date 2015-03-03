@@ -122,6 +122,7 @@ class oauth {
 
     public function logout(){
         $this->memcache->delete('oauth');
+        return(TRUE);
     }
 
     private function get_user_agent(){

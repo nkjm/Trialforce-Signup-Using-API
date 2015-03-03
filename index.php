@@ -1,6 +1,5 @@
 <?php
-ini_set('display_errors', 'stdout');
-error_reporting(E_ALL);
+error_reporting(0);
 
 require "config.php";
 require "oauthForHeroku.php";
@@ -10,151 +9,60 @@ $oauth->auth_with_code();
 ?>
 
 <!doctype html>
-<html ng-app>
+<html ng-app="trialforceSignup">
 <head>
     <meta charset="utf-8">
     <title>Trialforce Signup</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.min.css" rel="stylesheet"></link>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap-responsive.min.css" rel="stylesheet"></link>
-    <style>
-      body {
-        padding-top: 40px;
-        padding-bottom: 40px;
-        background-color: #f5f5f5;
-      }
-
-      .form-signin {
-        max-width: 400px;
-        padding: 19px 29px 29px;
-        margin: 0 auto 20px;
-        background-color: #fff;
-        border: 1px solid #e5e5e5;
-        -webkit-border-radius: 5px;
-           -moz-border-radius: 5px;
-                border-radius: 5px;
-        -webkit-box-shadow: 0 1px 2px rgba(0,0,0,.05);
-           -moz-box-shadow: 0 1px 2px rgba(0,0,0,.05);
-                box-shadow: 0 1px 2px rgba(0,0,0,.05);
-      }
-      .form-signin .form-signin-heading,
-      .form-signin .checkbox {
-        margin-bottom: 10px;
-      }
-      .form-signin input[type="text"],
-      .form-signin input[type="password"] {
-        font-size: 16px;
-        height: auto;
-        margin-bottom: 15px;
-        padding: 7px 9px;
-      }
-      .form-signin input[type="email"] {
-        font-size: 16px;
-        height: auto;
-        margin-bottom: 15px;
-        padding: 7px 9px;
-      }
-    </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.2/css/bootstrap.min.css" rel="stylesheet"></link>
 </head>
 <body>
 
-<div ng-controller="signup_ctrl" class="container">
-    <form ng-submit="submit()" name="signup_form" class="form-signin">
+<div ng-controller="signupRequestCtl" class="container">
+    <form ng-submit="create(ui.signupRequest)" name="signup_form" class="form-signin">
         <h3>Trialforceサインアップ</h3>
-        <div ng-show="result != 'success'">
-            <input ng-model="signup.LastName" class="input-block-level" placeholder="姓" type="text" required />
-            <input ng-model="signup.FirstName" class="input-block-level" placeholder="名" type="text" />
-            <input ng-model="signup.Company" class="input-block-level" placeholder="会社名" type="text" required />
-            <input ng-model="signup.SignupEmail" class="input-block-level" placeholder="Email" type="email" required />
-            <div ng-show="status != 'processing'" style="margin-top: 10px;">
-                <button ng-disabled="!signup_form.$valid" class="btn btn-large btn-primary" type="submit">送信</button>
-            </div>
+        <div class="form-group">
+            <input ng-model="ui.signupRequest.LastName" class="form-control" placeholder="姓" type="text" required />
         </div>
-        <div ng-show="status == 'processing'" class="progress progress-striped active" style="margin: 20px 0;">
-            <div class="bar" style="width: 100%;"></div>
+        <div class="form-group">
+            <input ng-model="ui.signupRequest.FirstName" class="form-control" placeholder="名" type="text" />
         </div>
-        <div ng-show="result == 'success'" class="alert alert-success" style="margin: 20px 0;">
-            <strong>完了！</strong> ログイン情報をメールでお送りします。
+        <div class="form-group">
+            <input ng-model="ui.signupRequest.Company" class="form-control" placeholder="会社名" type="text" required />
         </div>
-        <div ng-show="result == 'fail'" class="alert alert-error" style="margin: 20px 0;">
-            <div>
-                <strong>エラー</strong>
-            </div>
-            <ul>
-                <li ng-repeat="message in messages">
-                    {{ message }}
-                </li>
-            </ul>
+        <div class="form-group">
+            <input ng-model="ui.signupRequest.SignupEmail" class="form-control" placeholder="Email" type="email" required />
+        </div>
+        <div class="form-group" style="text-align:right;">
+            <button ng-disabled="remoting.inProgress || !signup_form.$valid" class="btn btn-primary" type="submit"><span class="glyphicon glyphicon-ok"></span>&nbsp;送信</button>
         </div>
     </form>
 </div>
 
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.1.5/angular.min.js"></script>
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
-<script type="text/javascript" src="forcetk.js"></script>
-
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.3.14/angular.min.js"></script>
+<script type="text/javascript" src="forcetk4ng.js"></script>
 <script type="text/javascript">
-j$ = jQuery.noConflict();
+angular.module('trialforceSignup', ['forcetk4ng'])
+.controller('signupRequestCtl', function($scope, $filter, $q, $log, $window, force){
+    $scope.create = function(signupRequest){
+        signupRequest.TemplateId = '<?php echo TEMPLATE_ID; ?>';
+        signupRequest.Country = 'JP';
+        signupRequest.Username = signupRequest.SignupEmail.split('@')[0] + '+' + Math.floor(Math.random() * 999999) + '@<?php echo APP_DOMAIN; ?>';
 
-function signup_ctrl($scope, $filter){
-    $scope.submit = function(){
-        var update_view = function(){
-            $scope.$apply();
-        };
-
-        var callback_success = function(){
-            delete $scope.signup.LastName;
-            delete $scope.signup.FirstName;
-            delete $scope.signup.Company;
-            delete $scope.signup.Username;
-            delete $scope.signup.SignupEmail;
-            delete $scope.status;
-            update_view();
-        };
-
-        var callback_fail = function(){
-            delete $scope.status;
-            update_view();
-        };
-
-        var force = new forcetk.Client('<?php echo CONSUMER_ID; ?>', 'https://login.salesforce.com', '/proxy.php');
-        force.setSessionToken('<?php echo $oauth->access_token; ?>', null, '<?php echo $oauth->instance_url; ?>');
-        $scope.signup.TemplateId = '<?php echo TEMPLATE_ID; ?>';
-        $scope.signup.Country = 'JP';
-        console.log($scope.signup.SignupEmail);
-        $scope.signup.Username = $scope.signup.SignupEmail.split('@')[0] + '+' + Math.floor(Math.random() * 9999) + '@<?php echo APP_DOMAIN; ?>';
-        $scope.status = 'processing';
-        delete $scope.result;
-        delete $scope.messages;
-        force.create(
-            'SignupRequest', 
-            $scope.signup, 
+        force.create('SignupRequest', signupRequest)
+        .then(
             function(response){
-                if (response.status.http_code == 201){
-                    $scope.result = 'success';
-                    $scope.messages = [];
-                    $scope.messages.push('サインアップが完了しました。ログイン情報がメールで送信されます。');
-                    callback_success();
-                } else {
-                    $scope.result = 'fail';
-                    $scope.messages = [];
-                    angular.forEach(response.contents, function(v, k){
-                        $scope.messages.push(v.message);
-                    });
-                    callback_fail();
-                }
+                $window.alert("サインアップの受付が完了しました。");
+                delete $scope.ui.signupRequest;
             },
             function(response){
-                $scope.result = 'fail';
-                $scope.messages = [];
-                $scope.messages.push('APIの呼び出しに失敗しました。サイト管理者にお問い合わせください。');
-                callback_fail();
+                $log.error(response);
             }
         );
-    };
-}
-
+    }
+    force.setAccessToken("<?php echo $oauth->access_token; ?>");
+    force.setInstanceUrl("<?php echo $oauth->instance_url; ?>");
+});
 </script>
 
 </body>
